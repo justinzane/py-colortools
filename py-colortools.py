@@ -6,22 +6,14 @@
 """
 
 from pnm_files import ppm_file
-import sys
+#import colorspaces
 
 if __name__ == "__main__":
-    print("Foo!\n")
-    infilename = "./test/test.ppm"
-    myppm = ppm_file()
-    myppm.loadimage(infilename)
-    print(type(myppm))
-    print(type(myppm.img))
-    print(type(myppm.img.data))
-    print("DATA SIZE: %d %d %d" % (len(myppm.img.data),
-                                   len(myppm.img.data[0]),
-                                   len(myppm.img.data[0][0])))
-    print("R %d, G %d, B %d\n" % (myppm.img.data[0][0][0],
-                                  myppm.img.data[0][0][1],
-                                  myppm.img.data[0][0][2]))
-    myppm.img.adj_hue_deg(180.0)
-    myppm.saveimage("./test/out.ppm")
-    sys.exit(0)
+    for deg in [0.0, 120.0, 180.0, 240.0, 360.0]:
+        infilename = "./test/test.ppm"
+        myppm = ppm_file()
+        myppm.loadimage(infilename)
+        myppm.img.do_nothing()
+        myppm.img.adj_hue_deg(deg)
+        myppm.saveimage("./test/out_%03d.ppm" % (deg))
+        print("Finished %03d degrees.\n" %(deg))

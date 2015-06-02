@@ -23,7 +23,7 @@ class ppm_file (object):
         self.comments = ""
         self.img = raw_img()
         self.img.channels = 3
-        self.img.colorspace = colorspaces.sRGB
+        self.img.colorspace = colorspaces.NTSC_RGB
         self.img.datatype = raw_img.DTYPES[2]
 
     @classmethod
@@ -73,7 +73,6 @@ class ppm_file (object):
                 numstrs = line.split()
                 for d in numstrs:
                     data.append(float(d) / 255.0)
-        print("Num datums: %d" % (len(data)))
         if not (((len(data) % 3) == 0) and
                 ((len(data) % self.img.width) == 0) and
                 ((len(data) % self.img.height) == 0)):
@@ -90,31 +89,31 @@ class ppm_file (object):
                 pixels.append(data[idx:idx+3])
             rows.append(pixels)
         self.img.data = rows
-        return
+
 
     def saveimage(self, img_file_name):
-        fh = open(img_file_name, 'w')
-        fh.write("%s\n" % (self.magic_num))
-        fh.write("%d %d\n" % (self.img.width, self.img.height))
-        fh.write("%d\n" % (self.max_val))
-        line = ""
-        for y in range(self.img.height):
-            for x in range(self.img.width):
-                for sp in range(self.img.channels):
-                    line += str(int(0.5 + 255.0 * self.img.data[y][x][sp]))
-                    if len(line) >= 77:
-                        line += "\n"
-                        fh.write(line)
-                        line = ""
-                    else:
-                        line += " "
-        fh.write("\n")
-        fh.close()
+        with open(img_file_name, 'w') as fh:
+            fh.write("%s\n" % (self.magic_num))
+            fh.write("%d %d\n" % (self.img.width, self.img.height))
+            fh.write("%d\n" % (self.max_val))
+            line = ""
+            for y in range(self.img.height):
+                for x in range(self.img.width):
+                    for sp in range(self.img.channels):
+                        line += str(int(0.5 + 255.0 * self.img.data[y][x][sp]))
+                        if (sp == (self.img.channels -1)) and (len(line) > 68):
+                            line += "\n"
+                            fh.write(line)
+                            line = ""
+                        else:
+                            line += " "
+            fh.write(line + "\n")
+            fh.close()
 
     def loadimage(self, img_file_name):
-        img_fh = open(img_file_name, 'r')
-        src_lines = img_fh.readlines(-1)
-        img_fh.close()
+        with open(img_file_name, 'r') as img_fh:
+            src_lines = img_fh.readlines(-1)
+            img_fh.close()
 
         mn = self._get_magic_number(src_lines[0])
         if (mn == None):
@@ -125,7 +124,6 @@ class ppm_file (object):
             return None
         else:
             self.magic_num = mn
-            print("Magic Number: %s" % (self.magic_num))
 
         while not ((self.max_val >= 0) and
                    (self.img.width >=0) and
@@ -139,14 +137,8 @@ class ppm_file (object):
                 if not dims == None:
                     self.img.width = dims[0]
                     self.img.height = dims[1]
-                    print("Size: %d x %d" % (self.img.width, self.img.height))
                 else:
                     mv = self._get_max_val(src_lines[0])
                     if not mv == None:
                         self.max_val = int(mv)
-                        print("Max Val: %d" % (self.max_val))
-        # end while
-        print("Getting data.")
         self._get_data(src_lines[1:])
-        print("Got data.")
-

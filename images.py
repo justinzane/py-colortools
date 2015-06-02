@@ -3,6 +3,9 @@
 @author Justin Zane Chudgar <justin@justinzane.com>
 @license GPLv3
 @brief Generic image structures for py-colortools.
+@note: Though Lindbloom uses the convention of subpixel subscripted with 'r' to
+       indicate whitepoint adjusted values; this module uses 'w' as a postfix
+       on variable names. I.e. X_r from Lindbloom becomes xw here.
 '''
 
 import colorspaces
@@ -36,6 +39,7 @@ class raw_img (object):
                     self.data[y][x][sp] = self.datatype(self.data[y][x][sp])
 
     def _rgb2xyz(self):
+        ''' @note Tested and working. '''
         if not self.datatype == raw_img.DTYPES[2]:
             self.convert_dtype(raw_img.DTYPES[2])
         for y in range(self.height):
@@ -49,16 +53,17 @@ class raw_img (object):
                 zval = (self.data[y][x][0] * self.colorspace['rgb2xyz_m'][2][0] +
                         self.data[y][x][1] * self.colorspace['rgb2xyz_m'][2][1] +
                         self.data[y][x][2] * self.colorspace['rgb2xyz_m'][2][2])
-                if (y == 0 and x == 0):
-                    print("RGB: %f, %f, %f\nXYZ: %f, %f, %f\n" %
-                          (self.data[y][x][0], self.data[y][x][1], self.data[y][x][2],
-                           xval, yval, zval))
                 self.data[y][x][0] = xval
                 self.data[y][x][1] = yval
                 self.data[y][x][2] = zval
+        maxval = max(max(max(self.data)))
+        minval = min(min(min(self.data)))
+        valrange = maxval - minval
+        print("xyz MAX: %f, MIN: %f, RANGE: %f" % (maxval, minval, valrange))
 
 
     def _xyz2rgb(self):
+        ''' @note Tested and working. '''
         for y in range(self.height):
             for x in range(self.width):
                 r = (self.data[y][x][0] * self.colorspace['xyz2rgb_m'][0][0] +
@@ -70,100 +75,124 @@ class raw_img (object):
                 b = (self.data[y][x][0] * self.colorspace['xyz2rgb_m'][2][0] +
                      self.data[y][x][1] * self.colorspace['xyz2rgb_m'][2][1] +
                      self.data[y][x][2] * self.colorspace['xyz2rgb_m'][2][2])
-                if (y == 0 and x == 0):
-                    print("XYZ: %f, %f, %f\nRGB: %f, %f, %f\n" %
-                          (self.data[y][x][0], self.data[y][x][1], self.data[y][x][2],
-                           r, g, b))
                 self.data[y][x][0] = r
                 self.data[y][x][1] = g
                 self.data[y][x][2] = b
+        maxval = max(max(max(self.data)))
+        minval = min(min(min(self.data)))
+        valrange = maxval - minval
+        print("rgb MAX: %f, MIN: %f, RANGE: %f" % (maxval, minval, valrange))
+
 
     @classmethod
     def _lab_f (cls, val):
-        if (val <= colorspaces.LAB_ETA):
-            return (colorspaces.LAB_LAMBDA * val + colorspaces.LAB_MU)
-        else:
+        if (val > colorspaces.LAB_ETA):
             return math.pow(val, 1.0/3.0)
+        else:
+            return (colorspaces.LAB_LAMBDA * val + colorspaces.LAB_MU)
 
     def _xyz2lab(self):
+        '''
+        @note Tested and working.
+        '''
         for y in range(self.height):
             for x in range(self.width):
                 xw = self.data[y][x][0] / self.colorspace['whitepoint_xyz'][0]
-                yw = self.data[y][x][0] / self.colorspace['whitepoint_xyz'][1]
-                zw = self.data[y][x][0] / self.colorspace['whitepoint_xyz'][2]
+                yw = self.data[y][x][1] / self.colorspace['whitepoint_xyz'][1]
+                zw = self.data[y][x][2] / self.colorspace['whitepoint_xyz'][2]
                 lval = 116.0 * raw_img._lab_f(yw) - 16.0
                 aval = 500.0 * (raw_img._lab_f(xw) - raw_img._lab_f(yw))
                 bval = 200.0 * (raw_img._lab_f(yw) - raw_img._lab_f(zw))
-                if (y == 0 and x == 0):
-                    print("XYZ: %f, %f, %f\nLAB: %f, %f, %f\n" %
-                          (self.data[y][x][0], self.data[y][x][1], self.data[y][x][2],
-                           lval, aval, bval))
                 self.data[y][x][0] = lval
                 self.data[y][x][1] = aval
                 self.data[y][x][2] = bval
 
 
+    @classmethod
+    def _inv_f_lab(cls, val):
+        '''@brief Private helper for _lab2xyz; see
+        (https://en.wikipedia.org/wiki/Lab_color_space) for info.'''
+        if val > (6.0/29.0):
+            return math.pow(val, 3.0)
+        else:
+            return (3.0 *
+                    math.pow((6.0 / 29.0), 2.0) *
+                    (val - (4.0 / 29.0)))
+
     def _lab2xyz(self):
+        '''
+        @brief Convert from CIE Lab to CIE XYZ space; see
+        (https://en.wikipedia.org/wiki/Lab_color_space) for info.
+        @note Tested and working.
+        '''
         for y in range(self.height):
             for x in range(self.width):
-                p = (self.data[y][x][0] + 16.0) / 116.0
                 xval = (self.colorspace['whitepoint_xyz'][0] *
-                        math.pow((p + self.data[y][x][1] / 500.0), 3))
+                        raw_img._inv_f_lab(((self.data[y][x][0] + 16.0) / 116.0) +
+                                            (self.data[y][x][1] / 500.0)))
                 yval = (self.colorspace['whitepoint_xyz'][1] *
-                        math.pow(p, 3))
+                        raw_img._inv_f_lab((self.data[y][x][0] +16.0) / 116.0))
                 zval = (self.colorspace['whitepoint_xyz'][2] *
-                        math.pow((p + self.data[y][x][2] / 200.0), 3))
-                if (y == 0 and x == 0):
-                    print("LAB: %f, %f, %f\nXYZ: %f, %f, %f\n" %
-                          (self.data[y][x][0], self.data[y][x][1], self.data[y][x][2],
-                           xval, yval, zval))
+                        raw_img._inv_f_lab(((self.data[y][x][0] +16.0) / 116.0) -
+                                            (self.data[y][x][2] / 200.0)))
                 self.data[y][x][0] = xval
                 self.data[y][x][1] = yval
                 self.data[y][x][2] = zval
+        maxval = max(max(max(self.data)))
+        minval = min(min(min(self.data)))
+        valrange = maxval - minval
+        print("xyz MAX: %f, MIN: %f, RANGE: %f" % (maxval, minval, valrange))
+
 
     def _lab2lhc(self):
+        ''' @note Tested and working. '''
         for y in range(self.height):
             for x in range(self.width):
                 cval = math.sqrt(math.pow(self.data[y][x][1], 2) +
                                  math.pow(self.data[y][x][2], 2))
-                if self.data[y][x][1] == 0.0:
-                    hval = 0.0
-                else:
-                    hval = math.atan(self.data[y][x][2] / self.data[y][x][1])
-                    if hval < 0.0:
-                        hval += 2.0 * math.pi
-                    elif hval >= (2.0 * math.pi) :
-                        hval += 2.0 * math.pi
-                if (y == 0 and x == 0):
-                    print("LAB: %f, %f, %f\nLHC: %f, %f, %f\n" %
-                          (self.data[y][x][0], self.data[y][x][1], self.data[y][x][2],
-                           self.data[y][x][0], hval, cval))
+                hval = math.atan2(self.data[y][x][2], self.data[y][x][1])
                 self.data[y][x][1] = hval
                 self.data[y][x][2] = cval
 
+
     def _lhc2lab(self):
+        ''' @brief Converts from CIE LHC space to CIE Lab.
+            @note Tested and working. '''
         for y in range(self.height):
             for x in range(self.width):
                 aval = self.data[y][x][2] * math.cos(self.data[y][x][1])
                 bval = self.data[y][x][2] * math.sin(self.data[y][x][1])
-                if (y == 0 and x == 0):
-                    print("LHC: %f, %f, %f\nLAB: %f, %f, %f\n" %
-                          (self.data[y][x][0], self.data[y][x][1], self.data[y][x][2],
-                           self.data[y][x][0], aval, bval))
                 self.data[y][x][1] = aval
                 self.data[y][x][2] = bval
+
+    def _normalize(self):
+        for y in range(self.height):
+            for x in range(self.width):
+                for sp in range(self.channels):
+                    if self.data[y][x][sp] > 1.0:
+                        self.data[y][x][sp] = 1.0
+                    elif self.data[y][x][sp] < 0.0:
+                        self.data[y][x][sp] = 0.0
+
+    def do_nothing(self):
+        self._rgb2xyz()
+        self._xyz2lab()
+        self._lab2lhc()
+        self._lhc2lab()
+        self._lab2xyz()
+        self._xyz2rgb()
 
     def adj_hue_deg(self, adj_deg):
         self._rgb2xyz()
         self._xyz2lab()
         self._lab2lhc()
 
-        twopi = 2.0 * math.pi
-        adj = adj_deg / twopi
+        adj = math.pi * adj_deg / 180.0
         for y in range(self.height):
             for x in range(self.width):
-                self.data[y][x][1] = (self.data[y][x][1] + adj) % twopi
+                self.data[y][x][1] = self.data[y][x][1] + adj
 
         self._lhc2lab()
         self._lab2xyz()
         self._xyz2rgb()
+        self._normalize()
