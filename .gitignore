@@ -1,11 +1,11 @@
 .eric6project/
-_eric6project/
+.eric6project/**
 .eric5project/
-_eric5project/
+.eric5project/**
 .eric4project/
-_eric4project/
+.eric4project/**
 .ropeproject/
-_ropeproject/
+.ropeproject/**
 .directory/
 *.pyc
 *.pyo
